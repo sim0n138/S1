@@ -1,0 +1,192 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  name          String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Profile data
+  profile       UserProfile?
+
+  // Relations
+  activities    UserActivity[]
+  plans         UserPlan[]
+  progress      UserProgress[]
+
+  @@map("users")
+}
+
+// User profile with fitness data
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  height          Int?     // in cm
+  weight          Float?   // in kg
+  dateOfBirth     DateTime? @map("date_of_birth")
+  gender          String?
+  fitnessLevel    String?  @map("fitness_level") // beginner, intermediate, advanced
+  goals           String[] // weight_loss, muscle_gain, flexibility, stress_relief
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("user_profiles")
+}
+
+// Workout model
+model Workout {
+  id              String   @id @default(cuid())
+  title           String
+  description     String   @db.Text
+  type            String   // strength, cardio, hiit, functional
+  duration        Int      // in minutes
+  level           String   // beginner, intermediate, advanced
+  caloriesBurn    Int?     @map("calories_burn") // approximate
+  equipment       String[] // none, dumbbells, resistance_bands, etc.
+  videoUrl        String?  @map("video_url")
+  thumbnailUrl    String?  @map("thumbnail_url")
+
+  exercises       Exercise[]
+  activities      UserActivity[]
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("workouts")
+}
+
+// Exercise within a workout
+model Exercise {
+  id              String   @id @default(cuid())
+  workoutId       String   @map("workout_id")
+  workout         Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?  @db.Text
+  sets            Int?
+  reps            Int?
+  duration        Int?     // in seconds (for timed exercises)
+  restTime        Int?     @map("rest_time") // in seconds
+  order           Int      // order in workout
+  videoUrl        String?  @map("video_url")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("exercises")
+}
+
+// Stretching session
+model StretchingSession {
+  id              String   @id @default(cuid())
+  title           String
+  description     String   @db.Text
+  type            String   // morning, evening, yoga, post_workout
+  duration        Int      // in minutes
+  level           String   // beginner, intermediate, advanced
+  videoUrl        String?  @map("video_url")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  poses           Json?    // Array of poses with durations
+
+  activities      UserActivity[]
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("stretching_sessions")
+}
+
+// Meditation session
+model Meditation {
+  id              String   @id @default(cuid())
+  title           String
+  description     String   @db.Text
+  category        String   // beginner, breathing, sleep, stress_relief
+  duration        Int      // in minutes
+  audioUrl        String?  @map("audio_url")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  ambientSound    String?  @map("ambient_sound") // rain, ocean, forest, none
+
+  activities      UserActivity[]
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("meditations")
+}
+
+// User activity log
+model UserActivity {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  activityType    String   @map("activity_type") // workout, stretching, meditation
+
+  // Polymorphic relations
+  workoutId       String?  @map("workout_id")
+  workout         Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+
+  stretchingId    String?  @map("stretching_id")
+  stretching      StretchingSession? @relation(fields: [stretchingId], references: [id], onDelete: SetNull)
+
+  meditationId    String?  @map("meditation_id")
+  meditation      Meditation? @relation(fields: [meditationId], references: [id], onDelete: SetNull)
+
+  completedAt     DateTime @default(now()) @map("completed_at")
+  duration        Int?     // actual duration in minutes
+  notes           String?  @db.Text
+
+  @@map("user_activities")
+  @@index([userId, completedAt])
+}
+
+// User weekly plan
+model UserPlan {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  weekStartDate   DateTime @map("week_start_date")
+  schedule        Json     // Weekly schedule structure
+  goals           String[]
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("user_plans")
+  @@index([userId, weekStartDate])
+}
+
+// User progress tracking
+model UserProgress {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date            DateTime @default(now())
+  weight          Float?
+  measurements    Json?    // chest, waist, hips, etc.
+  photos          String[] // URLs to progress photos
+  notes           String?  @db.Text
+
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("user_progress")
+  @@index([userId, date])
+}
